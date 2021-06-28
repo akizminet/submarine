@@ -121,7 +121,7 @@ object RangerSparkAuthorizer {
           }
         } else {
           val result = RangerSparkPlugin.isAccessAllowed(request, auditHandler)
-          if (result != null && !result.getIsAllowed) {
+          if (result != null && !result.getIsAllowed && resource.getAsString != "spark_catalog") {
             throw new SparkAccessControlException(s"Permission denied: user [$user] does not" +
               s" have [${request.getSparkAccessType}] privilege on [${resource.getAsString}]")
           }
