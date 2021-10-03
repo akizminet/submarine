@@ -17,22 +17,18 @@
 
 all: # The default target
 
-charts:
-	cp -r ../helm-charts/submarine/charts  .
-
 .PHONY: all
-all: charts
+all:
 	go build -o submarine-operator
 
 .PHONY: api
 api:
-	@cd hack; echo "Generating API..."; ./update-codegen.sh; \
-		echo "Verifying API..."; ./verify-codegen.sh
+	./hack/update-codegen.sh
 
 .PHONY: image
-image: charts
+image:
 	GOOS=linux go build -o submarine-operator
-	docker build -t submarine-operator .
+	docker build -t "apache/submarine:operator-0.6.0" -f dev.Dockerfile .
 	go build -o submarine-operator
 
 .PHONY: test-unit

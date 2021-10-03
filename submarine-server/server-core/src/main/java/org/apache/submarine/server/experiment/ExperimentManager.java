@@ -21,6 +21,7 @@ package org.apache.submarine.server.experiment;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,12 +41,15 @@ import org.apache.submarine.server.api.Submitter;
 import org.apache.submarine.server.api.experiment.ExperimentLog;
 import org.apache.submarine.server.api.experiment.TensorboardInfo;
 import org.apache.submarine.server.api.experiment.MlflowInfo;
+import org.apache.submarine.server.api.experiment.ServeRequest;
+import org.apache.submarine.server.api.experiment.ServeResponse;
 import org.apache.submarine.server.api.spec.ExperimentSpec;
 import org.apache.submarine.server.experiment.database.ExperimentEntity;
 import org.apache.submarine.server.experiment.database.ExperimentService;
 import org.apache.submarine.server.rest.RestConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.mlflow.tracking.MlflowClient;
 
 /**
  * It's responsible for managing the experiment CRUD and cache them
@@ -57,6 +61,8 @@ public class ExperimentManager {
 
   private final AtomicInteger experimentCounter = new AtomicInteger(0);
 
+  private Optional<org.mlflow.api.proto.Service.Experiment> MlflowExperimentOptional;
+  private org.mlflow.api.proto.Service.Experiment MlflowExperiment;
   /**
    * Used to cache the specs by the experiment id.
    * key: the string of experiment id
@@ -104,12 +110,14 @@ public class ExperimentManager {
     // and then log experiment metrics and parameters to submarine server
     ExperimentId id = generateExperimentId();
     String url = getSQLAlchemyURL();
+
     spec.getMeta().getEnvVars().put(RestConstants.JOB_ID, id.toString());
     spec.getMeta().getEnvVars().put(RestConstants.SUBMARINE_TRACKING_URI, url);
     spec.getMeta().getEnvVars().put(RestConstants.LOG_DIR_KEY, RestConstants.LOG_DIR_VALUE);
 
     String lowerName = spec.getMeta().getName().toLowerCase();
     spec.getMeta().setName(lowerName);
+    spec.getMeta().setExperimentId(id.toString());
 
     Experiment experiment = submitter.createExperiment(spec);
     experiment.setExperimentId(id);
@@ -119,13 +127,11 @@ public class ExperimentManager {
     spec.getMeta().getEnvVars().remove(RestConstants.LOG_DIR_KEY);
 
     experiment.setSpec(spec);
-
     ExperimentEntity entity = buildEntityFromExperiment(experiment);
     experimentService.insert(entity);
 
     return experiment;
   }
-
 
   /**
    * Get experiment
@@ -156,10 +162,16 @@ public class ExperimentManager {
     List<Experiment> experimentList = new ArrayList<>();
     List<ExperimentEntity> entities = experimentService.selectAll();
 
-    for (ExperimentEntity entity: entities) {
+    for (ExperimentEntity entity : entities) {
       Experiment experiment = buildExperimentFromEntity(entity);
-      Experiment foundExperiment = submitter.findExperiment(experiment.getSpec());
-
+      Experiment foundExperiment;
+      try {
+        foundExperiment = submitter.findExperiment(experiment.getSpec());
+      } catch (SubmarineRuntimeException e) {
+        LOG.warn("Submitter can not find experiment: {}, will delete it", entity.getId());
+        experimentService.delete(entity.getId());
+        continue;
+      }
       LOG.info("Found experiment: {}", foundExperiment.getStatus());
       if (status == null || status.toLowerCase().equals(foundExperiment.getStatus().toLowerCase())) {
         experiment.rebuild(foundExperiment);
@@ -171,9 +183,48 @@ public class ExperimentManager {
   }
 
   /**
+   * List experiments
+   *
+   * @param searchTag, if null will return all experiments
+   * @return list
+   * @throws SubmarineRuntimeException the service error
+   */
+  public List<Experiment> listExperimentsByTag(String searchTag) throws SubmarineRuntimeException {
+    List<Experiment> experimentList = new ArrayList<>();
+    List<ExperimentEntity> entities = experimentService.selectAll();
+
+    for (ExperimentEntity entity : entities) {
+      Experiment experiment = buildExperimentFromEntity(entity);
+      Experiment foundExperiment;
+      try {
+        foundExperiment = submitter.findExperiment(experiment.getSpec());
+      } catch (SubmarineRuntimeException e) {
+        LOG.warn("Submitter can not find experiment: {}, will delete it", entity.getId());
+        experimentService.delete(entity.getId());
+        continue;
+      }
+      LOG.info("Found experiment: {}", foundExperiment.getSpec().getMeta().getTags());
+      if (searchTag == null) {
+        experiment.rebuild(foundExperiment);
+        experimentList.add(experiment);
+      } else {
+        for (String tag: experiment.getSpec().getMeta().getTags()) {
+          if (tag.equalsIgnoreCase(searchTag)) {
+            experiment.rebuild(foundExperiment);
+            experimentList.add(experiment);
+            break;
+          }
+        }
+      }
+    }
+    LOG.info("List experiment: {}", experimentList.size());
+    return experimentList;
+  }
+
+  /**
    * Patch the experiment
    *
-   * @param id   experiment id
+   * @param id      experiment id
    * @param newSpec spec
    * @return object
    * @throws SubmarineRuntimeException the service error
@@ -181,6 +232,8 @@ public class ExperimentManager {
   public Experiment patchExperiment(String id, ExperimentSpec newSpec) throws SubmarineRuntimeException {
     checkExperimentId(id);
     checkSpec(newSpec);
+
+    newSpec.getMeta().setExperimentId(id);
 
     ExperimentEntity entity = experimentService.select(id);
     Experiment experiment = buildExperimentFromEntity(entity);
@@ -215,7 +268,16 @@ public class ExperimentManager {
     experimentService.delete(id);
 
     experiment.rebuild(deletedExperiment);
-    return experiment;
+
+    MlflowClient mlflowClient = new MlflowClient("http://submarine-mlflow-service:5000");
+    try {
+      MlflowExperimentOptional = mlflowClient.getExperimentByName(id);
+      MlflowExperiment = MlflowExperimentOptional.get();
+      String mlflowId = MlflowExperiment.getExperimentId();
+      mlflowClient.deleteExperiment(mlflowId);
+    } finally {
+      return experiment;
+    }
   }
 
   /**
@@ -229,7 +291,7 @@ public class ExperimentManager {
     List<ExperimentLog> experimentLogList = new ArrayList<>();
     List<ExperimentEntity> entities = experimentService.selectAll();
 
-    for (ExperimentEntity entity: entities) {
+    for (ExperimentEntity entity : entities) {
       Experiment experiment = buildExperimentFromEntity(entity);
       Experiment foundExperiment = submitter.findExperiment(experiment.getSpec());
 
@@ -240,7 +302,7 @@ public class ExperimentManager {
 
         experimentLogList.add(submitter.getExperimentLogName(
             experiment.getSpec(),
-            experiment.getExperimentId().toString()
+            experiment.getSpec().getMeta().getExperimentId()
         ));
       }
 
@@ -261,13 +323,7 @@ public class ExperimentManager {
     ExperimentEntity entity = experimentService.select(id);
     Experiment experiment = buildExperimentFromEntity(entity);
 
-    Experiment foundExperiment = submitter.findExperiment(experiment.getSpec());
-    experiment.rebuild(foundExperiment);
-
-    return submitter.getExperimentLogName(
-      experiment.getSpec(),
-      experiment.getExperimentId().toString()
-    );
+    return submitter.getExperimentLog(experiment.getSpec(), id);
   }
 
   /**
@@ -289,6 +345,32 @@ public class ExperimentManager {
   public MlflowInfo getMLflowInfo() throws SubmarineRuntimeException {
     return submitter.getMlflowInfo();
   }
+
+  /**
+   * Create serve
+   *
+   * @param spec spec
+   * @return object
+   * @throws SubmarineRuntimeException the service error
+   */
+  public ServeResponse createServe(ServeRequest spec) throws SubmarineRuntimeException {
+    // TODO(byronhsu): use mlflow api to make sure the model exists. Otherwise, raise exception.
+    ServeResponse serve = submitter.createServe(spec);
+    return serve;
+  }
+
+  /**
+   * Delete serve
+   *
+   * @param spec spec
+   * @return object
+   * @throws SubmarineRuntimeException the service error
+   */
+  public ServeResponse deleteServe(ServeRequest spec) throws SubmarineRuntimeException {
+    ServeResponse serve = submitter.deleteServe(spec);
+    return serve;
+  }
+
 
   private void checkSpec(ExperimentSpec spec) throws SubmarineRuntimeException {
     if (spec == null) {
@@ -314,13 +396,14 @@ public class ExperimentManager {
 
   public ExperimentId generateExperimentId() {
     return ExperimentId.newInstance(SubmarineServer.getServerTimeStamp(),
-      experimentCounter.incrementAndGet());
+        experimentCounter.incrementAndGet());
   }
 
   /**
    * Create a new experiment instance from entity, and filled
-   *   1. experimentId
-   *   2. spec
+   * 1. experimentId
+   * 2. spec
+   *
    * @param entity
    * @return Experiment
    */
@@ -339,7 +422,7 @@ public class ExperimentManager {
    */
   private ExperimentEntity buildEntityFromExperiment(Experiment experiment) {
     ExperimentEntity entity = new ExperimentEntity();
-    entity.setId(experiment.getExperimentId().toString());
+    entity.setId(experiment.getSpec().getMeta().getExperimentId());
     entity.setExperimentSpec(new GsonBuilder().disableHtmlEscaping().create().toJson(experiment.getSpec()));
     return entity;
   }

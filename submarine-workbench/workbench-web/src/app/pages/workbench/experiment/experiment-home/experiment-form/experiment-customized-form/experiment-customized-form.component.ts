@@ -29,7 +29,8 @@ import {
 import { ExperimentFormService } from '@submarine/services/experiment.form.service';
 import { ExperimentService } from '@submarine/services/experiment.service';
 import { ExperimentValidatorService } from '@submarine/services/experiment.validator.service';
-import { nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
+import { alphanumeric } from 'nanoid-dictionary';
 import { NzMessageService } from 'ng-zorro-antd';
 import { Subscription } from 'rxjs';
 
@@ -46,10 +47,7 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
   finalExperimentSpec: ExperimentSpec;
   step: number = 0;
   subscriptions: Subscription[] = [];
-
-  // TODO: Fetch all namespaces from submarine server
-  defaultNameSpace = 'default';
-  nameSpaceList = [this.defaultNameSpace, 'submarine'];
+  listOfOption: Array<{ label: string; value: string }> = [];
 
   // TODO: Fetch all images from submarine server
   imageIndex = 0;
@@ -75,6 +73,7 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
   framework = 'Tensorflow';
   currentSpecPage = 1;
 
+
   // About update
   @Input() targetId: string = null;
   @Input() targetSpec: ExperimentSpec = null;
@@ -88,9 +87,9 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.experiment = new FormGroup({
-      experimentName: new FormControl(null, Validators.required),
+      experimentName: new FormControl(null, [Validators.pattern('([a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]|[a-zA-Z0-9]+)'), Validators.required]),
       description: new FormControl(null, [Validators.required]),
-      namespace: new FormControl(this.defaultNameSpace, [Validators.required]),
+      tags: new FormControl([], []),
       cmd: new FormControl('', [Validators.required]),
       image: new FormControl(this.defaultImage, [Validators.required]),
       envs: new FormArray([], [this.experimentValidatorService.nameValidatorFactory('key')]),
@@ -133,6 +132,10 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
     });
 
     this.subscriptions.push(sub1, sub2);
+
+    //TODO: get tags from server
+    this.listOfOption = []; 
+  
   }
 
   ngOnDestroy() {
@@ -153,11 +156,11 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
   get experimentName() {
     return this.experiment.get('experimentName');
   }
+  get tags() {
+    return this.experiment.get('tags');
+  }
   get description() {
     return this.experiment.get('description');
-  }
-  get namespace() {
-    return this.experiment.get('namespace');
   }
   get cmd() {
     return this.experiment.get('cmd');
@@ -188,11 +191,11 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
   checkStatus() {
     if (this.step === 0) {
       this.experimentFormService.btnStatusChange(
-        this.experimentName.invalid ||
-          this.namespace.invalid ||
+        this.experimentName.invalid || 
+          this.tags.invalid ||          
           this.cmd.invalid ||
           this.image.invalid ||
-          this.envs.invalid
+          this.envs.invalid 
       );
     } else if (this.step === 1) {
       this.experimentFormService.btnStatusChange(this.specs.invalid);
@@ -323,10 +326,10 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
     // Construct the spec
     const meta: ExperimentMeta = {
       name: this.experimentName.value.toLowerCase(),
-      namespace: this.namespace.value,
+      tags: this.tags.value,
       framework: this.framework === 'Standalone' ? 'Tensorflow' : this.framework,
       cmd: this.cmd.value,
-      envVars: {}
+      envVars: {},
     };
     for (const env of this.envs.controls) {
       if (env.get('key').value) {
@@ -395,7 +398,7 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
     // Enable user from modifying the name
     this.experimentName.enable();
     // Put value back
-    const id: string = nanoid(8);
+    const id: string = customAlphabet(alphanumeric, 8)();
     const cloneExperimentName = spec.meta.name + '-' + id;
     this.experimentName.setValue(cloneExperimentName.toLocaleLowerCase());
     this.cloneExperiment(spec);
@@ -403,8 +406,8 @@ export class ExperimentCustomizedFormComponent implements OnInit, OnDestroy {
   }
 
   cloneExperiment(spec: ExperimentSpec) {
+    this.tags.setValue(spec.meta.tags);
     this.description.setValue(spec.meta.description);
-    this.namespace.setValue(spec.meta.namespace);
     this.cmd.setValue(spec.meta.cmd);
     this.image.setValue(spec.environment.image);
     if (this.imageList.indexOf(spec.environment.image) === -1) {

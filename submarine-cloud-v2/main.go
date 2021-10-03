@@ -20,10 +20,12 @@ package main
 import (
 	"flag"
 	"os"
-	clientset "submarine-cloud-v2/pkg/generated/clientset/versioned"
-	informers "submarine-cloud-v2/pkg/generated/informers/externalversions"
-	"submarine-cloud-v2/pkg/signals"
 	"time"
+
+	clientset "github.com/apache/submarine/submarine-cloud-v2/pkg/client/clientset/versioned"
+	informers "github.com/apache/submarine/submarine-cloud-v2/pkg/client/informers/externalversions"
+	"github.com/apache/submarine/submarine-cloud-v2/pkg/controller"
+	"github.com/apache/submarine/submarine-cloud-v2/pkg/signals"
 
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -84,17 +86,16 @@ func main() {
 	//       ex: namespace informer
 
 	// Create a Submarine operator
-	controller := NewController(incluster, kubeClient, submarineClient, traefikClient,
+	submarineController := controller.NewController(incluster, kubeClient, submarineClient, traefikClient,
 		kubeInformerFactory.Core().V1().Namespaces(),
 		kubeInformerFactory.Apps().V1().Deployments(),
 		kubeInformerFactory.Core().V1().Services(),
 		kubeInformerFactory.Core().V1().ServiceAccounts(),
-		kubeInformerFactory.Core().V1().PersistentVolumes(),
 		kubeInformerFactory.Core().V1().PersistentVolumeClaims(),
 		kubeInformerFactory.Extensions().V1beta1().Ingresses(),
 		traefikInformerFactory.Traefik().V1alpha1().IngressRoutes(),
-		kubeInformerFactory.Rbac().V1().ClusterRoles(),
-		kubeInformerFactory.Rbac().V1().ClusterRoleBindings(),
+		kubeInformerFactory.Rbac().V1().Roles(),
+		kubeInformerFactory.Rbac().V1().RoleBindings(),
 		submarineInformerFactory.Submarine().V1alpha1().Submarines())
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
@@ -104,7 +105,7 @@ func main() {
 	traefikInformerFactory.Start(stopCh)
 
 	// Run controller
-	if err = controller.Run(1, stopCh); err != nil {
+	if err = submarineController.Run(1, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err.Error())
 	}
 }

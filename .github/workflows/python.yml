@@ -1,3 +1,18 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 name: python-sdk
 
 # Trigger the workflow on push or pull request
@@ -6,18 +21,16 @@ on: [push, pull_request]
 jobs:
   unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     strategy:
       matrix:
         python-version: [3.6, 3.7]
         tf-version: [1.14.0, 1.15.0]
       fail-fast: false
-    env:
-      PYTHON: ${{ matrix.python }}
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Setup python environment
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
@@ -27,45 +40,33 @@ jobs:
           pip install --no-cache-dir torch==1.5.0
           pip install --no-cache-dir ./submarine-sdk/pysubmarine/.
           pip install -r ./submarine-sdk/pysubmarine/github-actions/test-requirements.txt
-          pip install -r ./submarine-sdk/pysubmarine/github-actions/lint-requirements.txt
+          pip install -r ./dev-support/style-check/python/lint-requirements.txt
+          pip install -r ./dev-support/style-check/python/mypy-requirements.txt
       - name: Check python sdk code style
-        run: |
-          ./submarine-sdk/pysubmarine/github-actions/lint.sh
+        run: ./dev-support/style-check/python/lint.sh
       - name: Run unit test
-        run: |
-          pytest --cov=submarine -vs -m "not e2e"
+        run: pytest --cov=submarine -vs -m "not e2e"
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v1
-      - name: Create the kind config
-        run: |
-          cat <<EOF > ./kind-config-kind.yaml
-          kind: Cluster
-          apiVersion: kind.x-k8s.io/v1alpha4
-          nodes:
-          - role: control-plane
-            kubeadmConfigPatches:
-            - |
-              kind: InitConfiguration
-              nodeRegistration:
-                kubeletExtraArgs:
-                  node-labels: "ingress-ready=true"
-                  authorization-mode: "AlwaysAllow"
-            extraPortMappings:
-            - containerPort: 32080
-              hostPort: 80
-              protocol: TCP
-            - containerPort: 443
-              hostPort: 443
-              protocol: TCP
-          EOF
-      - uses: container-tools/kind-action@v1
+      - uses: actions/checkout@v2
         with:
-          version: "v0.9.0"
-          node_image: kindest/node:v1.15.11
-          config: ./kind-config-kind.yaml
+          fetch-depth: 50
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: "1.8"
+      - name: Set up Maven 3.6.3
+        uses: stCarolas/setup-maven@v4
+        with:
+          maven-version: 3.6.3
+      - name: Check version
+        run: |
+          mvn --version
+          java -version
+      - name: Create kind cluster
+        run: kind create cluster --config ./.github/config/kind-config-kind.yaml --wait 3m --image kindest/node:v1.15.12
       - name: Show K8s cluster information
         run: |
           kubectl cluster-info
@@ -73,27 +74,32 @@ jobs:
           kubectl get pods -n kube-system
           echo "current-context:" $(kubectl config current-context)
           echo "environment-kubeconfig:" ${KUBECONFIG}
+      # Cache maven (for submarine server)
+      - uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Build Image locally
+        run: .github/scripts/build-image-locally.sh
       - name: Start submarine
-        run: |
-          # Fix submarine-database start failed in kind. https://github.com/kubernetes/minikube/issues/7906
-          sudo ln -s /etc/apparmor.d/usr.sbin.mysqld /etc/apparmor.d/disable/
-          sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.mysqld
-          helm install --wait submarine ./helm-charts/submarine
-          kubectl get pods
-          kubectl port-forward svc/submarine-database 3306:3306 &
-          kubectl port-forward svc/submarine-server 8080:8080 &
-          kubectl port-forward svc/submarine-minio-service 9000:9000 &
-          kubectl port-forward svc/submarine-mlflow-service 5001:5000 &
+        run: bash ./.github/scripts/start-submarine.sh
       - name: Setup python environment
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: 3.6
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install --no-cache-dir ./submarine-sdk/pysubmarine/.
+          pip install --no-cache-dir -e ./submarine-sdk/pysubmarine/.[tf,pytorch]
           pip install -r ./submarine-sdk/pysubmarine/github-actions/test-requirements.txt
       - name: Run integration test
+        working-directory: ./submarine-sdk/pysubmarine
+        run: pytest --cov=submarine -vs -m "e2e"
+      - name: Failure status
         run: |
-          cd submarine-sdk/pysubmarine
-          pytest --cov=submarine -vs -m "e2e"
+          kubectl describe nodes
+          kubectl get pods
+          kubectl -n default get events --sort-by='{.lastTimestamp}'
+        if: ${{ failure() }}

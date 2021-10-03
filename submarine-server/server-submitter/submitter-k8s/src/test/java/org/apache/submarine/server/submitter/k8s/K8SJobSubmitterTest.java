@@ -27,9 +27,11 @@ import org.apache.submarine.commons.utils.exception.SubmarineRuntimeException;
 import org.apache.submarine.server.api.experiment.Experiment;
 import org.apache.submarine.server.api.experiment.TensorboardInfo;
 import org.apache.submarine.server.api.experiment.MlflowInfo;
+import org.apache.submarine.server.api.experiment.ServeRequest;
 import org.apache.submarine.server.api.spec.ExperimentSpec;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +59,14 @@ public class K8SJobSubmitterTest extends SpecBuilder {
   public void before() throws ApiException {
     submitter = new K8sSubmitter();
     submitter.initialize(null);
+  }
+
+  @Ignore // TODO(byronhsu): make sure saving a model before create serve
+  @Test
+  public void tmpTest() {
+    ServeRequest request = new ServeRequest()
+          .modelName("simple-nn-model").modelVersion("1").namespace("default");
+    submitter.createServe(request);
   }
 
   @Test
@@ -103,7 +113,6 @@ public class K8SJobSubmitterTest extends SpecBuilder {
     Experiment experimentFound = submitter.findExperiment(spec);
     Assert.assertNotNull(experimentFound);
     Assert.assertEquals(experimentCreated.getUid(), experimentFound.getUid());
-    Assert.assertEquals(experimentCreated.getName(), experimentFound.getName());
     Assert.assertEquals(experimentCreated.getAcceptedTime(), experimentFound.getAcceptedTime());
 
     // delete
@@ -111,6 +120,5 @@ public class K8SJobSubmitterTest extends SpecBuilder {
     Assert.assertNotNull(experimentDeleted);
     Assert.assertEquals(Experiment.Status.STATUS_DELETED.getValue(), experimentDeleted.getStatus());
     Assert.assertEquals(experimentFound.getUid(), experimentDeleted.getUid());
-    Assert.assertEquals(experimentFound.getName(), experimentDeleted.getName());
   }
 }

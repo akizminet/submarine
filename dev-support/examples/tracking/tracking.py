@@ -15,15 +15,16 @@
  under the License.
 """
 
-from submarine import ModelsClient
 import random
 import time
 
+from submarine import ModelsClient
+
 if __name__ == "__main__":
-  periscope = ModelsClient()
-  with periscope.start() as run:
-      periscope.log_param("learning_rate", random.random())
-      for i in range(100):
-        time.sleep(1)
-        periscope.log_metric("mse", random.random() * 100, i)
-        periscope.log_metric("acc", random.random(), i)
+    modelClient = ModelsClient()
+    with modelClient.start() as run:
+        modelClient.log_param("learning_rate", random.random())
+        for i in range(100):
+            time.sleep(1)
+            modelClient.log_metric("mse", random.random() * 100, i)
+            modelClient.log_metric("acc", random.random(), i)

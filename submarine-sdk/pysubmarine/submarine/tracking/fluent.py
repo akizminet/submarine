@@ -19,13 +19,12 @@ Submarine run. This module is exposed to users at the top-level :py:mod:`submari
 from __future__ import print_function
 
 import logging
-import time
+from datetime import datetime
 
 from submarine.tracking.client import SubmarineClient
 from submarine.tracking.utils import get_job_id, get_worker_index
 
 _RUN_ID_ENV_VAR = "SUBMARINE_RUN_ID"
-_active_run_stack = []
 
 _logger = logging.getLogger(__name__)
 
@@ -52,5 +51,4 @@ def log_metric(key, value, step=None):
     """
     job_id = get_job_id()
     worker_index = get_worker_index()
-    SubmarineClient().log_metric(job_id, key, value, worker_index,
-                                 int(time.time() * 1000), step or 0)
+    SubmarineClient().log_metric(job_id, key, value, worker_index, datetime.now(), step or 0)

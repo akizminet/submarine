@@ -25,6 +25,7 @@ _JOB_ID_ENV_VAR = "JOB_ID"
 
 _TF_CONFIG = "TF_CONFIG"
 _CLUSTER_SPEC = "CLUSTER_SPEC"
+_CLUSTER = "cluster"
 _JOB_NAME = "JOB_NAME"
 _TYPE = "type"
 _TASK = "task"
@@ -57,22 +58,28 @@ def get_worker_index():
         task_config = tf_config.get(_TASK)
         task_type = task_config.get(_TYPE)
         task_index = task_config.get(_INDEX)
-        worker_index = task_type + '-' + str(task_index)
+        worker_index = task_type + "-" + str(task_index)
     elif env.get_env(_CLUSTER_SPEC) is not None:
         cluster_spec = json.loads(os.environ.get(_CLUSTER_SPEC))
         task_config = cluster_spec.get(_TASK)
         task_type = task_config.get(_JOB_NAME)
         task_index = task_config.get(_INDEX)
-        worker_index = task_type + '-' + str(task_index)
+        worker_index = task_type + "-" + str(task_index)
     # Get PyTorch worker index
     elif env.get_env(_RANK) is not None:
         rank = env.get_env(_RANK)
-        if rank == "0":
-            worker_index = "master-0"
-        else:
-            worker_index = "worker-" + rank
+        worker_index = "worker-" + rank
     # Set worker index to "worker-0" When running local training
     else:
         worker_index = "worker-0"
 
     return worker_index
+
+
+def exist_ps():
+    if env.get_env(_TF_CONFIG) is not None:
+        tf_config = json.loads(os.environ.get(_TF_CONFIG))
+        cluster = tf_config.get(_CLUSTER)
+        if "ps" in cluster:
+            return True
+    return False

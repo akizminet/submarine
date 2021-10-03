@@ -23,7 +23,7 @@ import { ExperimentFormService } from '@submarine/services/experiment.form.servi
 import { ExperimentService } from '@submarine/services/experiment.service';
 import { NzMessageService } from 'ng-zorro-antd';
 import { interval } from 'rxjs';
-import { filter, mergeMap, take, tap, timeout } from 'rxjs/operators';
+import { filter, mergeMap, take, tap, timeout, retryWhen } from 'rxjs/operators';
 import { ExperimentFormComponent } from './experiment-form/experiment-form.component';
 
 @Component({
@@ -42,10 +42,10 @@ export class ExperimentHomeComponent implements OnInit {
   isListLoading: boolean = true;
   checkedList: boolean[];
   selectAllChecked: boolean = false;
-  switchValue: boolean = false;
+  switchValue: boolean = true;
 
   // auto reload
-  reloadPeriod: number = 10000; // default 10s
+  reloadPeriod: number = 3000; // default 3s
   reloadInterval = interval(this.reloadPeriod);
   reloadSub = null;
 
@@ -67,15 +67,16 @@ export class ExperimentHomeComponent implements OnInit {
 
   ngOnInit() {
     this.experimentFormService.fetchListService.subscribe(() => {
-      this.fetchExperimentList();
+      this.fetchExperimentList(false);
     });
 
     this.experimentService.emitInfo(null);
     this.getTensorboardInfo(1000, 50000);
-    this.getMlflowInfo(1000, 50000);
+    this.getMlflowInfo(1000, 100000);
+    this.onSwitchAutoReload();
   }
 
-  fetchExperimentList() {
+  fetchExperimentList(isAutoReload: boolean) {
     this.experimentService.fetchExperimentList().subscribe(
       (list) => {
         this.isListLoading = false;
@@ -93,9 +94,12 @@ export class ExperimentHomeComponent implements OnInit {
             item.duration = this.experimentService.durationHandle(result);
           }
         });
-        this.checkedList = [];
-        for (let i = 0; i < this.experimentList.length; i++) {
-          this.checkedList.push(false);
+        if(!isAutoReload){
+          // If it is auto-reloading, we do not want to change the state of checkbox.
+          this.checkedList = [];
+          for (let i = 0; i < this.experimentList.length; i++) {
+            this.checkedList.push(false);
+          }
         }
       },
       (error) => {
@@ -110,7 +114,7 @@ export class ExperimentHomeComponent implements OnInit {
         if (onMessage === true) {
           this.nzMessageService.success('Delete Experiment Successfully!');
         }
-        this.fetchExperimentList();
+        this.fetchExperimentList(true);
       },
       (err) => {
         if (onMessage === true) {
@@ -134,10 +138,9 @@ export class ExperimentHomeComponent implements OnInit {
   }
 
   onSwitchAutoReload() {
-    console.log(this.switchValue);
     if (this.switchValue) {
       this.reloadSub = this.reloadInterval.subscribe((res) => {
-        this.fetchExperimentList();
+        this.fetchExperimentList(true);
       });
     } else {
       if (this.reloadSub) {
@@ -156,6 +159,7 @@ export class ExperimentHomeComponent implements OnInit {
     interval(period)
       .pipe(
         mergeMap(() => this.experimentService.getTensorboardInfo()), // map interval observable to tensorboardInfo observable
+        retryWhen((error) => error), //  retry to get tensorboardInfo
         tap((x) => console.log(x)), // monitoring the process
         filter((res) => res.available), // only emit the success ones
         take(1), // if succeed, stop emitting new value from source observable
@@ -174,6 +178,7 @@ export class ExperimentHomeComponent implements OnInit {
     interval(period)
       .pipe(
         mergeMap(() => this.experimentService.getMlflowInfo()),
+        retryWhen((error) => error),
         tap((x) => console.log(x)),
         filter((res) => res.available),
         take(1),

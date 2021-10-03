@@ -29,10 +29,12 @@ import os
 import re
 import subprocess
 import sys
+
 import urllib2
 
 try:
     import jira.client
+
     JIRA_IMPORTED = True
 except ImportError:
     JIRA_IMPORTED = False
@@ -110,7 +112,7 @@ def merge_pr(pr_num, target_ref):
 
     had_conflicts = False
     try:
-        run_cmd(['git', 'merge', pr_branch_name, '--squash'])
+        run_cmd(["git", "merge", pr_branch_name, "--squash"])
     except Exception as e:
         msg = "Error merging: %s\nWould you like to manually fix-up this merge?" % e
         continue_maybe(msg)
@@ -118,15 +120,17 @@ def merge_pr(pr_num, target_ref):
         continue_maybe(msg)
         had_conflicts = True
 
-    commit_authors = run_cmd(['git', 'log', 'HEAD..%s' % pr_branch_name,
-                             '--pretty=format:%an <%ae>']).split("\n")
-    commit_date = run_cmd(['git', 'log', '%s' % pr_branch_name, '-1',
-                             '--pretty=format:%ad'])
-    distinct_authors = sorted(set(commit_authors),
-                              key=lambda x: commit_authors.count(x), reverse=True)
+    commit_authors = run_cmd(
+        ["git", "log", "HEAD..%s" % pr_branch_name, "--pretty=format:%an <%ae>"]
+    ).split("\n")
+    commit_date = run_cmd(["git", "log", "%s" % pr_branch_name, "-1", "--pretty=format:%ad"])
+    distinct_authors = sorted(
+        set(commit_authors), key=lambda x: commit_authors.count(x), reverse=True
+    )
     primary_author = distinct_authors[0]
-    commits = run_cmd(['git', 'log', 'HEAD..%s' % pr_branch_name,
-                      '--pretty=format:%h [%an] %s']).split("\n\n")
+    commits = run_cmd(
+        ["git", "log", "HEAD..%s" % pr_branch_name, "--pretty=format:%h [%an] %s"]
+    ).split("\n\n")
 
     merge_message_flags = []
 
@@ -145,35 +149,45 @@ def merge_pr(pr_num, target_ref):
 
     committer_name = run_cmd("git config --get user.name").strip()
     committer_email = run_cmd("git config --get user.email").strip()
-    merge_message_flags += ["-m", "\n" + "Signed-off-by: %s <%s>" % (committer_name, committer_email)]
+    merge_message_flags += [
+        "-m",
+        "\n" + "Signed-off-by: %s <%s>" % (committer_name, committer_email),
+    ]
 
     if had_conflicts:
         message = "This patch had conflicts when merged, resolved by\nCommitter: %s <%s>" % (
-            committer_name, committer_email)
+            committer_name,
+            committer_email,
+        )
         merge_message_flags += ["-m", message]
 
     # The string "Closes #%s" string is required for GitHub to correctly close the PR
     merge_message_flags += [
         "-m",
-        "Closes #%s from %s and squashes the following commits:" % (pr_num, pr_repo_desc)]
+        "Closes #%s from %s and squashes the following commits:" % (pr_num, pr_repo_desc),
+    ]
     for c in commits:
         merge_message_flags += ["-m", c]
 
-    run_cmd(['git', 'commit', '--author="%s"' % primary_author, '--date="%s"' % commit_date] + merge_message_flags)
+    run_cmd(
+        ["git", "commit", '--author="%s"' % primary_author, '--date="%s"' % commit_date]
+        + merge_message_flags
+    )
 
-    continue_maybe("Merge complete (local ref %s). Push to %s?" % (
-        target_branch_name, PUSH_REMOTE_NAME))
+    continue_maybe(
+        "Merge complete (local ref %s). Push to %s?" % (target_branch_name, PUSH_REMOTE_NAME)
+    )
 
     try:
-        run_cmd('git push %s %s:%s' % (PUSH_REMOTE_NAME, target_branch_name, target_ref))
+        run_cmd("git push %s %s:%s" % (PUSH_REMOTE_NAME, target_branch_name, target_ref))
     except Exception as e:
         clean_up()
         fail("Exception while pushing: %s" % e)
 
     merge_hash = run_cmd("git rev-parse %s" % target_branch_name)[:8]
     clean_up()
-    print("Pull request #%s merged!" % pr_num)
-    print("Merge hash: %s" % merge_hash)
+    print ("Pull request #%s merged!" % pr_num)
+    print ("Merge hash: %s" % merge_hash)
     return merge_hash
 
 
@@ -195,11 +209,12 @@ def cherry_pick(pr_num, merge_hash, default_branch):
         msg = "Okay, please fix any conflicts and finish the cherry-pick. Finished?"
         continue_maybe(msg)
 
-    continue_maybe("Pick complete (local ref %s). Push to %s?" % (
-        pick_branch_name, PUSH_REMOTE_NAME))
+    continue_maybe(
+        "Pick complete (local ref %s). Push to %s?" % (pick_branch_name, PUSH_REMOTE_NAME)
+    )
 
     try:
-        run_cmd('git push %s %s:%s' % (PUSH_REMOTE_NAME, pick_branch_name, pick_ref))
+        run_cmd("git push %s %s:%s" % (PUSH_REMOTE_NAME, pick_branch_name, pick_ref))
     except Exception as e:
         clean_up()
         fail("Exception while pushing: %s" % e)
@@ -207,8 +222,8 @@ def cherry_pick(pr_num, merge_hash, default_branch):
     pick_hash = run_cmd("git rev-parse %s" % pick_branch_name)[:8]
     clean_up()
 
-    print("Pull request #%s picked into %s!" % (pr_num, pick_ref))
-    print("Pick hash: %s" % pick_hash)
+    print ("Pull request #%s picked into %s!" % (pr_num, pick_ref))
+    print ("Pick hash: %s" % pick_hash)
     return pick_ref
 
 
@@ -222,8 +237,9 @@ def fix_version_from_branch(branch, versions):
 
 
 def resolve_jira_issue(merge_branches, comment, default_jira_id=""):
-    asf_jira = jira.client.JIRA({'server': JIRA_API_BASE},
-                                basic_auth=(JIRA_USERNAME, JIRA_PASSWORD))
+    asf_jira = jira.client.JIRA(
+        {"server": JIRA_API_BASE}, basic_auth=(JIRA_USERNAME, JIRA_PASSWORD)
+    )
 
     jira_id = raw_input("Enter a JIRA id [%s]: " % default_jira_id)
     if jira_id == "":
@@ -245,14 +261,16 @@ def resolve_jira_issue(merge_branches, comment, default_jira_id=""):
     if cur_status == "Resolved" or cur_status == "Closed":
         fail("JIRA issue %s already has status '%s'" % (jira_id, cur_status))
     print ("=== JIRA %s ===" % jira_id)
-    print ("summary\t\t%s\nassignee\t%s\nstatus\t\t%s\nurl\t\t%s/%s\n" % (
-        cur_summary, cur_assignee, cur_status, JIRA_BASE, jira_id))
+    print (
+        "summary\t\t%s\nassignee\t%s\nstatus\t\t%s\nurl\t\t%s/%s\n"
+        % (cur_summary, cur_assignee, cur_status, JIRA_BASE, jira_id)
+    )
 
     versions = asf_jira.project_versions("SUBMARINE")
     versions = sorted(versions, key=lambda x: x.name, reverse=True)
-    versions = filter(lambda x: x.raw['released'] is False, versions)
+    versions = filter(lambda x: x.raw["released"] is False, versions)
     # Consider only x.y.z versions
-    versions = filter(lambda x: re.match('\d+\.\d+\.\d+', x.name), versions)
+    versions = filter(lambda x: re.match("\d+\.\d+\.\d+", x.name), versions)
 
     default_fix_versions = map(lambda x: fix_version_from_branch(x, versions).name, merge_branches)
     for v in default_fix_versions:
@@ -277,9 +295,10 @@ def resolve_jira_issue(merge_branches, comment, default_jira_id=""):
 
     jira_fix_versions = map(lambda v: get_version_json(v), fix_versions)
 
-    resolve = filter(lambda a: a['name'] == "Resolve Issue", asf_jira.transitions(jira_id))[0]
+    resolve = filter(lambda a: a["name"] == "Resolve Issue", asf_jira.transitions(jira_id))[0]
     asf_jira.transition_issue(
-        jira_id, resolve["id"], fixVersions=jira_fix_versions, comment=comment)
+        jira_id, resolve["id"], fixVersions=jira_fix_versions, comment=comment
+    )
 
     print "Successfully resolved %s with fixVersions=%s!" % (jira_id, fix_versions)
 
@@ -293,10 +312,10 @@ def resolve_jira_issues(title, merge_branches, comment):
         resolve_jira_issue(merge_branches, comment, jira_id)
 
 
-#branches = get_json("%s/branches" % GITHUB_API_BASE)
-#branch_names = filter(lambda x: x.startswith("branch-"), [x['name'] for x in branches])
+# branches = get_json("%s/branches" % GITHUB_API_BASE)
+# branch_names = filter(lambda x: x.startswith("branch-"), [x['name'] for x in branches])
 # Assumes branch names can be sorted lexicographically
-#latest_branch = sorted(branch_names, reverse=True)[0]
+# latest_branch = sorted(branch_names, reverse=True)[0]
 latest_branch = "master"
 
 pr_num = raw_input("Which pull request would you like to merge? (e.g. 23): ")
@@ -313,16 +332,17 @@ pr_repo_desc = "%s/%s" % (user_login, base_ref)
 
 # Merged pull requests don't appear as merged in the GitHub API;
 # Instead, they're closed by asfgit.
-merge_commits = \
-    [e for e in pr_events if e["actor"]["login"] == "asfgit" and e["event"] == "closed"]
+merge_commits = [e for e in pr_events if e["actor"]["login"] == "asfgit" and e["event"] == "closed"]
 
 if merge_commits:
     merge_hash = merge_commits[0]["commit_id"]
     message = get_json("%s/commits/%s" % (GITHUB_API_BASE, merge_hash))["commit"]["message"]
 
     print "Pull request %s has already been merged, assuming you want to backport" % pr_num
-    commit_is_downloaded = run_cmd(['git', 'rev-parse', '--quiet', '--verify',
-                                    "%s^{commit}" % merge_hash]).strip() != ""
+    commit_is_downloaded = (
+        run_cmd(["git", "rev-parse", "--quiet", "--verify", "%s^{commit}" % merge_hash]).strip()
+        != ""
+    )
     if not commit_is_downloaded:
         fail("Couldn't find any merge commit for #%s, you may need to update HEAD." % pr_num)
 
@@ -331,13 +351,14 @@ if merge_commits:
     sys.exit(0)
 
 if not bool(pr["mergeable"]):
-    msg = "Pull request %s is not mergeable in its current form.\n" % pr_num + \
-        "Continue? (experts only!)"
+    msg = (
+        "Pull request %s is not mergeable in its current form.\n" % pr_num
+        + "Continue? (experts only!)"
+    )
     continue_maybe(msg)
 
 print ("\n=== Pull Request #%s ===" % pr_num)
-print ("title\t%s\nsource\t%s\ntarget\t%s\nurl\t%s" % (
-    title, pr_repo_desc, target_ref, url))
+print ("title\t%s\nsource\t%s\ntarget\t%s\nurl\t%s" % (title, pr_repo_desc, target_ref, url))
 continue_maybe("Proceed with merging pull request #%s?" % pr_num)
 
 merged_refs = [target_ref]

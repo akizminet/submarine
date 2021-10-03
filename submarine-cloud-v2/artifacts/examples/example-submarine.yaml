@@ -15,18 +15,17 @@
 # limitations under the License.
 #
 
-apiVersion: submarine.k8s.io/v1alpha1
+apiVersion: submarine.apache.org/v1alpha1
 kind: Submarine
 metadata:
   name: example-submarine
 spec:
-  version: "0.6.0-SNAPSHOT"
-  replicas: 1
+  version: "0.6.0"
   server:
-    # image: "apache/submarine:server-0.6.0-SNAPSHOT" # overwrite the image when development
+    # image: "apache/submarine:server-0.6.0" # overwrite the image when development
     replicas: 1
   database:
-    # image: "apache/submarine:database-0.6.0-SNAPSHOT" # overwrite the image when development
+    # image: "apache/submarine:database-0.6.0" # overwrite the image when development
     replicas: 1
     storageSize: "1Gi"
     mysqlRootPasswordSecret: "root-pass-secret"
@@ -36,9 +35,6 @@ spec:
   mlflow:
     enabled: true
     storageSize: "10Gi"
-  storage:
-    # storageType: "nfs"
-    # nfsPath: "/"
-    # nfsIP: "10.96.0.2"
-    storageType: "host"
-    hostPath: "/tmp/submarine/host"
+  minio:
+    enabled: true
+    storageSize: "10Gi"

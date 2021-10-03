@@ -24,7 +24,6 @@
   [nzData]="experimentList"
   [nzNoResult]="'No data'"
   [nzLoading]="isLoading"
-  nzSize="small"
 >
   <thead>
     <tr>
@@ -33,6 +32,7 @@
       </th>
       <th>Experiment Name</th>
       <th>Experiment ID</th>
+      <th>Tags</th>
       <th>Status</th>
       <th>Finished Time</th>
       <th>Created Time</th>
@@ -46,11 +46,14 @@
       <td>
         <label nz-checkbox [(ngModel)]="checkedList[i]"></label>
       </td>
-      <td>{{ data.name }}</td>
+      <td>{{ data.spec.meta.name }}</td>
       <td>
         <a [routerLink]="['info', data.experimentId]">
           {{ data.experimentId }}
         </a>
+      </td>
+      <td>
+        <nz-tag *ngFor="let tag of data.spec.meta.tags">{{tag}}</nz-tag>
       </td>
       <td>
         <nz-tag [nzColor]="statusColor[data.status]">{{ data.status }}</nz-tag>

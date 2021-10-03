@@ -62,9 +62,29 @@ spec:
       labels:
         app: submarine-mlflow-pod
     spec:
+      initContainers:
+      - name: submarine-mlflow-initcontainer
+        image: "minio/mc"
+        command: ["/bin/bash", "-c",
+        "cnt=0;
+        while ! /bin/bash -c 'mc config host add minio http://submarine-minio-service:9000
+        submarine_minio submarine_minio' 2>&1;
+        do
+          sleep 15;
+          ((cnt=cnt+1));
+          if [ $cnt -eq 80 ];then
+            echo 'ERROR: wait too long for minio pod';
+            exit 1;
+          fi;
+        done;
+        if /bin/bash -c 'mc ls minio/mlflow' >/dev/null 2>&1; then
+          echo 'Bucket minio/mlflow already exists, skipping creation.';
+        else
+          /bin/bash -c 'mc mb minio/mlflow';
+        fi;"]
       containers:
       - name: submarine-mlflow-container
-        image: apache/submarine:mlflow-0.6.0-SNAPSHOT
+        image: apache/submarine:mlflow-0.6.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
@@ -72,6 +92,11 @@ spec:
           - mountPath: "/logs"
             name: "volume"
             subPath: "submarine-mlflow"
+        readinessProbe:
+          tcpSocket:
+            port: 5000
+          initialDelaySeconds: 60
+          periodSeconds: 10
       volumes:
         - name: "volume"
           persistentVolumeClaim:

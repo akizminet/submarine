@@ -22,33 +22,25 @@ module.exports = {
         {
             Introduction: [],
             "Getting Started": [
-                "gettingStarted/localDeployment",
+                "gettingStarted/quickstart",
+                // "gettingStarted/localDeployment",
                 "gettingStarted/notebook",
-                "gettingStarted/python-sdk",
+                // "gettingStarted/python-sdk",
             ],
             "User Docs": [
                 {
-                    "Submarine on Kubernetes": [
-                        "userDocs/k8s/run-experiment-template-rest",
-                        "userDocs/k8s/run-pytorch-experiment-rest",
-                        "userDocs/k8s/run-tensorflow-experiment-rest",
-                        "userDocs/k8s/how-to-use-tensorboard",
-                    ],
-                },
-                {
-                    "Submarine on Yarn": [
-                        "userDocs/yarn/YARNRuntimeGuide",
-                        "userDocs/yarn/TestAndTroubleshooting",
-                        "userDocs/yarn/Dockerfiles",
-                        "userDocs/yarn/WriteDockerfileMX",
-                        "userDocs/yarn/WriteDockerfilePT",
-                        "userDocs/yarn/WriteDockerfileTF",
+                    "API documentation": [
+                        "userDocs/api/experiment",
+                        "userDocs/api/environment",
+                        "userDocs/api/experiment-template",
+                        "userDocs/api/notebook",
                     ],
                 },
                 {
                     "Submarine SDK": [
-                        "userDocs/submarine-sdk/pysubmarine/development",
-                        "userDocs/submarine-sdk/pysubmarine/tracking",
+                        "userDocs/submarine-sdk/experiment-client",
+                        "userDocs/submarine-sdk/model-client",
+                        "userDocs/submarine-sdk/tracking",
                     ],
                 },
                 {
@@ -57,26 +49,28 @@ module.exports = {
                         "userDocs/submarine-security/spark-security/build-submarine-spark-security-plugin",
                     ],
                 },
-            ],
-            "Administrator Docs": [
                 {
-                    "Submarine on Kubernetes": [
-                        "adminDocs/k8s/README",
-                        "adminDocs/k8s/kind",
-                        "adminDocs/k8s/helm",
+                    Others: [
+                        "userDocs/others/mlflow",
+                        "userDocs/others/tensorboard",
                     ],
                 },
+            ],
+            "Administrator Docs": [
                 {
                     "Submarine on Yarn": ["adminDocs/yarn/README"],
                 },
             ],
             "Developer Docs": [
                 "devDocs/README",
+                "devDocs/Dependencies",
                 "devDocs/BuildFromCode",
                 "devDocs/Development",
-                "devDocs/IntegrationTest",
+                "devDocs/IntegrationTestK8s",
+                "devDocs/IntegrationTestE2E",
             ],
             Community: [
+                "community/Bylaws",
                 "community/README",
                 "community/HowToCommit",
                 "community/contributing",

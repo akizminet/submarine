@@ -24,20 +24,20 @@ module.exports = {
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/submarine.ico',
   organizationName: 'apache', // Usually your GitHub org/user name.
-  projectName: 'submarine-site', // Usually your repo name.
+  projectName: 'submarine-site', // Don't change the project name, the website will be updated to submarine-site repo
   themeConfig: {
     navbar: {
       title: 'Apache Submarine',
       logo: {
         alt: 'Apache Submarine Site Logo',
-        src: 'https://github.com/apache/submarine/blob/master/website/docs/assets/128-black.png?raw=true',
+        src: 'img/icons/128.png',
       },
       items: [
         {
           type: 'doc',
-          docId: 'gettingStarted/localDeployment',
+          docId: 'gettingStarted/quickstart',
           label: 'Docs',
           position: 'left',
         },
@@ -55,6 +55,12 @@ module.exports = {
         },
           // right
         {
+          type: 'docsVersionDropdown',
+          dropdownItemsAfter: [{to: '/versions', label: 'All versions'}],
+          dropdownActiveClassDisabled: true,
+          position: 'right',
+        },
+        {
           href: 'https://github.com/apache/submarine',
           label: 'GitHub',
           position: 'right',
@@ -63,35 +69,48 @@ module.exports = {
           label: 'Apache',
           position: 'right',
           items: [
-            {
-              label: 'Apache Software Foundation',
-              href: 'http://www.apache.org/foundation/how-it-works.html',
-            },
-            {
-              label: 'Apache License',
-              href: 'http://www.apache.org/licenses/',
-            },
-            {
-              label: 'Sponsorship',
-              href: 'http://www.apache.org/foundation/sponsorship.html',
-            },
-            {
-              label: 'Thanks',
-              href: 'http://www.apache.org/foundation/thanks.html',
-            },
+              {
+                  label: 'Apache Software Foundation',
+                  href: 'https://www.apache.org/foundation/how-it-works.html',
+              },
+              {
+                  label: 'Events',
+                  href: 'https://www.apache.org/events/current-event',
+              },
+              {
+                  label: 'Apache License',
+                  href: 'https://www.apache.org/licenses/',
+              },
+              {
+                  label: 'Thanks',
+                  href: 'https://www.apache.org/foundation/thanks.html',
+              },
+              {
+                  label: 'Security',
+                  href: 'https://www.apache.org/security/',
+              },
+              {
+                  label: 'Sponsorship',
+                  href: 'https://www.apache.org/foundation/sponsorship.html',
+              },
           ],
         }
       ],
     },
     footer: {
       style: 'dark',
+      logo: {
+          alt: 'Apache Open Source Logo',
+          src: 'https://hadoop.apache.org/asf_logo_wide.png',
+          href: 'https://www.apache.org/',
+      },
       links: [
         {
           title: 'Docs',
           items: [
             {
               label: 'Getting Started',
-              to: 'docs/',
+              to: 'docs/gettingStarted/quickstart',
             },
             {
               label: 'API docs',
@@ -116,17 +135,19 @@ module.exports = {
           title: 'More',
           items: [
             {
-              label: 'Blog',
-              to: 'https://medium.com/@apache.submarine',
+                label: 'Blog',
+                to: 'https://medium.com/@apache.submarine',
             },
-            {
-              label: 'GitHub',
-              href: 'https://github.com/apache/submarine',
-            },
+              {
+                  label: 'GitHub',
+                  href: 'https://github.com/apache/submarine',
+              },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Apache Submarine is Apache2 Licensed software.`,
+      copyright: `Apache Submarine, Submarine, Apache, the Apache feather logo, and the Apache Submarine project logo are
+       either registered trademarks or trademarks of the Apache Software Foundation in the United States and other
+        countries.<br> Copyright © ${new Date().getFullYear()} Apache Submarine is Apache2 Licensed software.`,
     },
   },
   presets: [
@@ -138,6 +159,11 @@ module.exports = {
           // Please change this to your repo.
           editUrl:
             'https://github.com/apache/submarine/edit/master/website/',
+            versions: {
+              current: {
+                label: `master 🏃`,
+              },
+            },
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
